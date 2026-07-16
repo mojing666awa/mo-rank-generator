@@ -296,7 +296,6 @@
         .meta-item svg { width: 16px; height: 16px; fill: rgba(255,255,255,0.3); flex-shrink: 0; }
         .meta-val { color: rgba(255,255,255,0.85); font-weight: 600; margin-left: 1px; }
 
-        /* 进度提示 */
         .progress-bar {
             display: none;
             height: 3px;
@@ -512,12 +511,14 @@
     const videoInput = document.getElementById('videoInput');
     const bgVideo = document.getElementById('bgVideo');
     let videoLoaded = false;
+    let videoFileUrl = null;
 
     videoInput.addEventListener('change', function(e) {
         const file = e.target.files[0];
         if (!file) return;
-        const url = URL.createObjectURL(file);
-        bgVideo.src = url;
+        if (videoFileUrl) URL.revokeObjectURL(videoFileUrl);
+        videoFileUrl = URL.createObjectURL(file);
+        bgVideo.src = videoFileUrl;
         bgVideo.classList.add('active');
         bgVideo.load();
         bgVideo.play().catch(() => {});
@@ -627,7 +628,7 @@
         });
     }
 
-    // ========== 导出视频 (使用 Canvas 逐帧渲染) ==========
+    // ========== 导出视频 (使用 Canvas 逐帧渲染 + 音频合并) ==========
     let exportRunning = false;
     let exportStop = false;
 
@@ -652,7 +653,6 @@
         const totalFrames = duration * fps;
         const frameInterval = 1000 / fps;
 
-        // 显示进度条
         const progressBar = document.getElementById('progressBar');
         const progressFill = document.getElementById('progressFill');
         progressBar.classList.add('active');
@@ -661,6 +661,9 @@
         exportStop = false;
         exportRunning = true;
 
+        // 保存原始视频背景状态，用于恢复
+        const wasVideoPlaying = videoLoaded && !bgVideo.paused;
+
         try {
             // 创建离屏 Canvas
             const canvas = document.createElement('canvas');
@@ -668,11 +671,52 @@
             canvas.height = 720;
             const ctx = canvas.getContext('2d');
 
-            // 准备视频流
+            // 从 Canvas 捕获视频流
             const stream = canvas.captureStream(fps);
+            
+            // 如果有视频背景，获取其音频轨道
+            let audioTracks = [];
+            let audioStream = null;
+            if (videoLoaded && bgVideo.src) {
+                try {
+                    // 创建音频上下文来捕获音频
+                    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                    const source = audioCtx.createMediaElementSource(bgVideo);
+                    const destination = audioCtx.createMediaStreamDestination();
+                    source.connect(destination);
+                    // 不连接到扬声器，只用于捕获
+                    // source.connect(audioCtx.destination); // 如果需要监听
+                    audioStream = destination.stream;
+                    audioTracks = audioStream.getAudioTracks();
+                    if (audioTracks.length > 0) {
+                        // 将音频轨道添加到视频流
+                        for (const track of audioTracks) {
+                            stream.addTrack(track);
+                        }
+                        console.log('✅ 已添加音频轨道');
+                    }
+                } catch (e) {
+                    console.warn('无法捕获音频:', e);
+                    // 尝试另一种方式：使用 video 元素的 captureStream
+                    try {
+                        const videoStream = bgVideo.captureStream();
+                        const vAudioTracks = videoStream.getAudioTracks();
+                        if (vAudioTracks.length > 0) {
+                            for (const track of vAudioTracks) {
+                                stream.addTrack(track);
+                            }
+                            console.log('✅ 通过 video.captureStream 添加了音频');
+                        }
+                    } catch (e2) {
+                        console.warn('音频捕获失败，将导出无声视频:', e2);
+                    }
+                }
+            }
+
             const mediaRecorder = new MediaRecorder(stream, {
-                mimeType: 'video/webm;codecs=vp9',
-                videoBitsPerSecond: 8000000
+                mimeType: 'video/webm;codecs=vp9,opus',
+                videoBitsPerSecond: 8000000,
+                audioBitsPerSecond: 128000
             });
 
             const chunks = [];
@@ -686,7 +730,7 @@
             target.style.transform = 'scale(1)';
             target.style.transformOrigin = 'top left';
 
-            // 如果视频背景存在，确保播放
+            // 确保视频背景播放
             if (videoLoaded) {
                 bgVideo.play().catch(() => {});
             }
@@ -703,7 +747,7 @@
                 }
 
                 // 使用 html2canvas 渲染当前帧
-                await html2canvas(target, {
+                const tempCanvas = await html2canvas(target, {
                     scale: 1,
                     useCORS: true,
                     allowTaint: true,
@@ -711,10 +755,10 @@
                     width: 1280,
                     height: 720,
                     logging: false
-                }).then(tempCanvas => {
-                    ctx.clearRect(0, 0, 1280, 720);
-                    ctx.drawImage(tempCanvas, 0, 0, 1280, 720);
                 });
+                
+                ctx.clearRect(0, 0, 1280, 720);
+                ctx.drawImage(tempCanvas, 0, 0, 1280, 720);
 
                 frameCount++;
                 const progress = (frameCount / totalFrames) * 100;
@@ -724,7 +768,9 @@
                 const elapsed = performance.now() - startTime;
                 const targetTime = frameCount * frameInterval;
                 const waitTime = Math.max(0, targetTime - elapsed);
-                await new Promise(resolve => setTimeout(resolve, waitTime));
+                if (waitTime > 0) {
+                    await new Promise(resolve => setTimeout(resolve, waitTime));
+                }
             }
 
             // 停止录制
@@ -735,8 +781,7 @@
                 mediaRecorder.onstop = () => {
                     resolve();
                 };
-                // 如果已经停止但还没触发，设置超时
-                setTimeout(resolve, 1000);
+                setTimeout(resolve, 2000);
             });
 
             // 恢复卡片样式
@@ -746,12 +791,16 @@
             // 下载视频
             if (chunks.length > 0) {
                 const blob = new Blob(chunks, { type: 'video/webm' });
-                const url = URL.createObjectURL(blob);
-                const link = document.createElement('a');
-                link.download = `VOCALOID_Myth_${duration}s.webm`;
-                link.href = url;
-                link.click();
-                setTimeout(() => URL.revokeObjectURL(url), 5000);
+                if (blob.size > 1000) {
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.download = `VOCALOID_Myth_${duration}s.webm`;
+                    link.href = url;
+                    link.click();
+                    setTimeout(() => URL.revokeObjectURL(url), 5000);
+                } else {
+                    alert('视频数据过小，可能导出失败。请重试或更换浏览器。');
+                }
             } else {
                 alert('视频数据为空，请重试');
             }
