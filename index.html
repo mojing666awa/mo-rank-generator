@@ -12,7 +12,6 @@
             --glass-border: rgba(255, 255, 255, 0.4);
             --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.2);
             --text-main: #ffffff;
-            --text-dark: #333;
             --accent-blue: #00d2ff;
             --accent-red: #ff4757;
         }
@@ -20,416 +19,340 @@
         body {
             margin: 0;
             padding: 0;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #2c3e50;
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f0f2f5;
             display: flex;
-            height: 100vh;
-            overflow: hidden;
+            flex-direction: column;
+            min-height: 100vh;
         }
 
         /* 布局容器 */
         .container {
             display: flex;
+            flex-wrap: wrap;
             width: 100%;
-            height: 100%;
+            max-width: 1600px;
+            margin: 0 auto;
+            background: #fff;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
         }
 
         /* 左侧控制面板 */
         .controls {
-            width: 350px;
-            background: #fff;
+            flex: 1;
+            min-width: 300px;
             padding: 20px;
+            background: #ffffff;
+            border-right: 1px solid #ddd;
             overflow-y: auto;
-            box-shadow: 2px 0 10px rgba(0,0,0,0.1);
-            z-index: 10;
-            display: flex;
-            flex-direction: column;
-            gap: 15px;
-        }
-
-        .control-group {
-            border-bottom: 1px solid #eee;
-            padding-bottom: 15px;
-        }
-
-        .control-group h3 {
-            margin-top: 0;
-            color: #333;
-            font-size: 16px;
-            margin-bottom: 10px;
-        }
-
-        label {
-            display: block;
-            margin-bottom: 5px;
-            font-size: 12px;
-            color: #666;
-        }
-
-        input, select {
-            width: 100%;
-            padding: 8px;
-            margin-bottom: 10px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            box-sizing: border-box;
-        }
-
-        button.download-btn {
-            background: linear-gradient(45deg, #ff9a9e 0%, #fad0c4 99%, #fad0c4 100%);
-            border: none;
-            padding: 15px;
-            color: white;
-            font-weight: bold;
-            cursor: pointer;
-            border-radius: 8px;
-            margin-top: auto;
-            font-size: 16px;
-            transition: transform 0.2s;
-        }
-
-        button.download-btn:hover {
-            transform: scale(1.02);
+            max-height: 100vh;
         }
 
         /* 右侧预览区域 */
         .preview-area {
-            flex: 1;
-            background: url('https://images.unsplash.com/photo-1550684848-fac1c5b4e853?q=80&w=2070&auto=format&fit=crop') no-repeat center center;
-            background-size: cover;
+            flex: 2;
+            min-width: 350px; /* 保证手机端能放下预览图 */
+            background: #2c3e50;
+            padding: 20px;
             display: flex;
             justify-content: center;
-            align-items: center;
-            position: relative;
+            align-items: flex-start;
+            overflow-x: auto; /* 允许横向滚动查看大图 */
         }
 
-        /* 核心画布 (16:9 比例) */
+        h2 { margin-top: 0; color: #333; font-size: 1.2rem; border-bottom: 2px solid #eee; padding-bottom: 10px;}
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; color: #555; font-size: 0.9rem;}
+        input, select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            box-sizing: border-box;
+            font-size: 14px;
+        }
+        
+        .row { display: flex; gap: 10px; }
+        .col { flex: 1; }
+
+        button.download-btn {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(45deg, #2193b0, #6dd5ed);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 20px;
+            transition: transform 0.1s;
+        }
+        button.download-btn:active { transform: scale(0.98); }
+
+        /* --- 核心预览图样式 (1280x720 比例) --- */
         #capture-target {
             width: 1280px;
             height: 720px;
-            background: radial-gradient(circle at center, #ffecd2 0%, #fcb69f 100%); /* 默认背景，会被图片覆盖 */
+            background-image: url('https://picsum.photos/1280/720?grayscale'); /* 默认背景，可替换 */
+            background-size: cover;
+            background-position: center;
             position: relative;
             overflow: hidden;
-            transform-origin: center center;
-            /* 自动缩放以适应屏幕 */
-            transform: scale(0.6); 
+            color: white;
+            flex-shrink: 0; /* 防止被压缩 */
             box-shadow: 0 0 50px rgba(0,0,0,0.5);
+            font-family: "Microsoft YaHei", sans-serif;
         }
 
-        /* 背景图片层 */
-        .bg-image-layer {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            z-index: 0;
-        }
-
-        /* 顶部标题 */
-        .top-title {
+        /* 顶部标题栏 */
+        .top-bar {
             position: absolute;
             top: 30px;
             left: 40px;
             font-size: 48px;
             font-weight: 900;
-            color: rgba(255, 255, 255, 0.8);
-            text-shadow: 2px 2px 0px rgba(0,0,0,0.2);
-            font-style: italic;
-            z-index: 2;
+            text-shadow: 0 4px 10px rgba(0,0,0,0.5);
             letter-spacing: 2px;
+            z-index: 10;
         }
 
-        /* 通用液态玻璃样式 */
-        .glass-panel {
-            background: rgba(255, 255, 255, 0.25);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.5);
-            border-radius: 16px;
-            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
-            padding: 15px;
-            color: #fff;
-            text-shadow: 0 1px 2px rgba(0,0,0,0.3);
-        }
-
-        /* 右上角总分面板 */
+        /* 右上角总分面板 - 液态玻璃 */
         .total-score-panel {
             position: absolute;
             top: 30px;
-            right: 30px;
-            width: 280px;
-            z-index: 2;
-            text-align: right;
+            right: 40px;
+            width: 320px;
+            background: var(--glass-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-border);
+            border-radius: 16px;
+            padding: 15px;
+            box-shadow: var(--glass-shadow);
         }
+        .ts-header { font-size: 18px; font-weight: bold; margin-bottom: 5px; opacity: 0.9; }
+        .ts-sub { font-size: 12px; opacity: 0.7; margin-bottom: 10px; display: flex; justify-content: space-between;}
+        .ts-score { font-size: 42px; font-weight: 800; text-align: center; margin: 5px 0; text-shadow: 0 2px 5px rgba(0,0,0,0.3);}
 
-        .total-label {
-            font-size: 14px;
-            opacity: 0.9;
-            margin-bottom: 5px;
-        }
-
-        .total-points {
-            font-size: 42px;
-            font-weight: 800;
-            line-height: 1;
-            margin-bottom: 10px;
-            color: #fff;
-            text-shadow: 0 2px 4px rgba(0,0,0,0.2);
-        }
-
-        .sub-stats {
-            display: flex;
-            justify-content: space-between;
-            font-size: 12px;
-            opacity: 0.8;
-            border-top: 1px solid rgba(255,255,255,0.3);
-            padding-top: 5px;
-        }
-
-        /* 右侧详细数据列表 */
-        .detail-list {
-            position: absolute;
-            top: 200px;
-            right: 30px;
-            width: 220px;
-            display: flex;
-            flex-direction: column;
+        .ts-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
             gap: 8px;
-            z-index: 2;
+            margin-top: 10px;
         }
-
-        .list-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            background: rgba(255, 255, 255, 0.2);
-            backdrop-filter: blur(8px);
-            padding: 8px 12px;
+        .ts-item {
+            background: rgba(255,255,255,0.1);
             border-radius: 8px;
-            border-left: 4px solid rgba(255,255,255,0.5);
-        }
-
-        .list-item span:first-child {
+            padding: 6px;
             display: flex;
             align-items: center;
-            gap: 8px;
-            font-size: 14px;
+            font-size: 12px;
         }
+        .ts-icon { width: 20px; text-align: center; margin-right: 5px; font-size: 14px;}
+        .ts-val { flex: 1; text-align: right; font-weight: bold; }
 
-        .list-item span:last-child {
+        /* 左下角排名大数字 */
+        .rank-box {
+            position: absolute;
+            bottom: 40px;
+            left: 40px;
+            display: flex;
+            align-items: center;
+        }
+        .rank-num {
+            font-size: 140px;
+            font-weight: 900;
+            line-height: 1;
+            margin-right: 20px;
+            text-shadow: 0 5px 15px rgba(0,0,0,0.4);
+        }
+        .rank-arrow {
+            font-size: 60px;
+            color: #4cd137; /* 默认绿色上升 */
             font-weight: bold;
-            font-size: 16px;
         }
 
-        /* 图标占位符 */
-        .icon {
-            width: 16px;
-            height: 16px;
-            display: inline-block;
-            background: #fff;
-            border-radius: 50%;
+        /* 底部信息条 - 液态玻璃 */
+        .info-bar {
+            position: absolute;
+            bottom: 40px;
+            left: 220px; /* 避开排名 */
+            right: 40px;
+            height: 100px;
+            background: var(--glass-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-border);
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            padding: 0 30px;
+            box-shadow: var(--glass-shadow);
         }
 
-        /* 左下角信息栏 */
-        .bottom-info {
+        .song-info { flex: 2; border-right: 1px solid rgba(255,255,255,0.2); padding-right: 20px; height: 60%; display: flex; flex-direction: column; justify-content: center;}
+        .song-title { font-size: 32px; font-weight: bold; margin-bottom: 5px; text-shadow: 0 2px 4px rgba(0,0,0,0.5); }
+        .song-author { font-size: 18px; opacity: 0.9; }
+
+        .dates-info { flex: 1; padding-left: 30px; font-size: 14px; line-height: 1.6; opacity: 0.9;}
+        .date-row { display: flex; justify-content: space-between; }
+        .date-label { opacity: 0.7; }
+
+        /* 右下角统计小方块 */
+        .stats-box {
+            position: absolute;
+            bottom: 40px; /* 这里需要调整，原图是在右下角，但 info-bar 占据了位置。
+                             根据原图，stats-box 其实是在 info-bar 的右边或者重叠？
+                             看原图：Info bar 在左下，Stats 在右下。
+                             修正布局：
+                           */
+            display: none; /* 暂时隐藏，用下面的新布局 */
+        }
+
+        /* 重新规划底部布局以匹配原图 */
+        /* 原图结构：
+           左下：Rank (10) + Arrow
+           中下：Info Bar (Title, Author, Dates)
+           右下：Stats Boxes (Last Rank, Weeks, Peak)
+        */
+        
+        .bottom-layout {
             position: absolute;
             bottom: 30px;
             left: 30px;
             right: 30px;
             display: flex;
             align-items: stretch;
-            height: 100px;
-            z-index: 2;
-            gap: 15px;
+            height: 110px;
         }
 
-        /* 排名大数字 */
-        .rank-box {
-            width: 120px;
+        .bl-rank {
+            width: 150px;
             display: flex;
             flex-direction: column;
             justify-content: center;
             align-items: center;
-            position: relative;
+            margin-right: 15px;
         }
+        .bl-rank-num { font-size: 100px; font-weight: 900; line-height: 0.9; text-shadow: 0 4px 10px rgba(0,0,0,0.5); }
+        .bl-rank-arrow { font-size: 40px; margin-top: 5px; }
 
-        .rank-number {
-            font-size: 72px;
-            font-weight: 900;
-            line-height: 1;
-            color: #fff;
-            text-shadow: 0 4px 8px rgba(0,0,0,0.3);
-        }
-
-        .rank-arrow {
-            font-size: 24px;
-            margin-top: 5px;
-            font-weight: bold;
-        }
-        
-        .arrow-up { color: #00ff00; text-shadow: 0 0 5px #00ff00; }
-        .arrow-down { color: #ff0000; text-shadow: 0 0 5px #ff0000; }
-        .arrow-same { color: #aaa; }
-
-        /* 歌曲信息 */
-        .song-info-box {
+        .bl-info {
             flex: 1;
+            background: var(--glass-bg);
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            padding: 15px 25px;
             display: flex;
             flex-direction: column;
             justify-content: center;
-            padding-left: 20px;
-            border-left: 2px solid rgba(255,255,255,0.3);
+            margin-right: 15px;
+            box-shadow: var(--glass-shadow);
         }
+        .bi-title { font-size: 28px; font-weight: bold; margin-bottom: 4px; text-shadow: 0 2px 4px rgba(0,0,0,0.5); }
+        .bi-author { font-size: 16px; opacity: 0.9; margin-bottom: 8px; }
+        .bi-dates { font-size: 12px; opacity: 0.8; display: flex; gap: 20px; }
 
-        .song-title {
-            font-size: 32px;
-            font-weight: 800;
-            margin-bottom: 8px;
-            color: #fff;
-            text-shadow: 0 2px 4px rgba(0,0,0,0.5);
-        }
-
-        .song-author {
-            font-size: 18px;
-            opacity: 0.9;
-        }
-
-        /* 右下角统计数据 */
-        .stats-box {
+        .bl-stats {
             display: flex;
             gap: 10px;
+        }
+        .stat-card {
+            width: 80px;
+            background: var(--glass-bg);
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
             align-items: center;
+            box-shadow: var(--glass-shadow);
         }
+        .sc-num { font-size: 32px; font-weight: bold; line-height: 1; }
+        .sc-label { font-size: 10px; margin-top: 5px; opacity: 0.8; text-align: center; line-height: 1.1;}
 
-        .stat-item {
-            background: rgba(0, 0, 0, 0.3);
-            padding: 10px 15px;
-            border-radius: 10px;
-            text-align: center;
-            min-width: 60px;
-        }
 
-        .stat-num {
-            font-size: 28px;
-            font-weight: bold;
-            display: block;
+        /* 移动端适配 */
+        @media (max-width: 768px) {
+            .container { flex-direction: column; }
+            .controls { max-height: 40vh; border-right: none; border-bottom: 1px solid #ddd; }
+            .preview-area { 
+                padding: 10px; 
+                justify-content: flex-start; /* 靠左对齐以便滚动 */
+                align-items: center;
+            }
+            /* 强制预览图缩小以适应屏幕宽度，但保持比例 */
+            #capture-target {
+                transform-origin: top left;
+                transform: scale(0.5); /* 初始缩放，JS会动态计算 */
+                margin-bottom: -300px; /* 补偿缩放后的空白 */
+            }
         }
-
-        .stat-label {
-            font-size: 10px;
-            opacity: 0.7;
-            text-transform: uppercase;
-        }
-
-        /* 装饰性文字 */
-        .deco-text {
-            position: absolute;
-            font-size: 60px;
-            font-weight: 900;
-            color: rgba(255, 255, 255, 0.1);
-            transform: rotate(-10deg);
-            z-index: 1;
-            pointer-events: none;
-        }
-        .deco-left { left: 100px; top: 200px; }
-        .deco-right { right: 300px; bottom: 200px; }
-
-        /* 上传按钮样式 */
-        .file-upload {
-            position: relative;
-            overflow: hidden;
-            display: inline-block;
-            width: 100%;
-        }
-        .file-upload input[type=file] {
-            font-size: 100px;
-            position: absolute;
-            left: 0;
-            top: 0;
-            opacity: 0;
-            cursor: pointer;
-        }
-        .btn-style {
-            background: #eee; border: 1px solid #ccc; padding: 8px; border-radius: 4px; text-align: center; display: block; cursor: pointer;
-        }
-
     </style>
 </head>
 <body>
 
 <div class="container">
-    <!-- 左侧控制面板 -->
+    <!-- 左侧：控制面板 -->
     <div class="controls">
-        <h2>⚙️ 榜单设置</h2>
+        <h2>榜单数据设置</h2>
         
-        <div class="control-group">
-            <h3>背景设置</h3>
-            <div class="file-upload">
-                <span class="btn-style">📷 上传背景图 (推荐 16:9)</span>
-                <input type="file" id="bgInput" accept="image/*">
+        <div class="form-group">
+            <label>背景图片 URL (可选)</label>
+            <input type="text" id="bgInput" placeholder="输入图片链接..." oninput="updatePreview()">
+        </div>
+
+        <div class="row">
+            <div class="col form-group">
+                <label>当前排名</label>
+                <input type="number" id="rankInput" value="10" oninput="updatePreview()">
+            </div>
+            <div class="col form-group">
+                <label>排名变化</label>
+                <select id="arrowInput" onchange="updatePreview()">
+                    <option value="up" style="color:green">▲ 上升</option>
+                    <option value="same" style="color:gray">- 持平</option>
+                    <option value="down" style="color:red">▼ 下降</option>
+                    <option value="new" style="color:#00d2ff">NEW</option>
+                </select>
             </div>
         </div>
 
-        <div class="control-group">
-            <h3>基本信息</h3>
-            <label>左上角标题</label>
-            <input type="text" id="inputTitle" value="VOCALOID Myth">
-            
-            <label>排名 (Rank)</label>
-            <input type="number" id="inputRank" value="10">
-            
-            <label>排名趋势 (Arrow)</label>
-            <select id="inputArrow">
-                <option value="up">上升 (▲)</option>
-                <option value="down">下降 (▼)</option>
-                <option value="same" selected>持平 (-)</option>
-                <option value="new">NEW</option>
-            </select>
-
-            <label>歌曲名</label>
-            <input type="text" id="inputSongName" value="愛属性">
-            
+        <div class="form-group">
+            <label>歌曲名称</label>
+            <input type="text" id="titleInput" value="愛属性" oninput="updatePreview()">
+        </div>
+        <div class="form-group">
             <label>P主/作者</label>
-            <input type="text" id="inputAuthor" value="ピノキオピー - 初音ミク">
+            <input type="text" id="authorInput" value="ピノキオピー" oninput="updatePreview()">
         </div>
 
-        <div class="control-group">
-            <h3>分数数据</h3>
-            <label>总得分 (Total Point)</label>
-            <input type="text" id="inputTotalScore" value="1,000,000">
-            <label>上周得分</label>
-            <input type="text" id="inputLastScore" value="676,767">
-            <label>Rate 变化</label>
-            <input type="text" id="inputRate" value="+100%">
+        <div class="row">
+            <div class="col form-group">
+                <label>投稿日期</label>
+                <input type="text" id="datePostInput" value="2025/10/03" oninput="updatePreview()">
+            </div>
+            <div class="col form-group">
+                <label>神话达成日</label>
+                <input type="text" id="dateMythInput" value="2025/02/17" oninput="updatePreview()">
+            </div>
         </div>
 
-        <div class="control-group">
-            <h3>六维数据 (播放/收藏/投币...)</h3>
-            <label>播放 (Play)</label>
-            <input type="text" class="data-input" data-target="val-play" value="100,000">
-            <label>收藏 (Fav)</label>
-            <input type="text" class="data-input" data-target="val-collect" value="100,000">
-            <label>投币 (Coin)</label>
-            <input type="text" class="data-input" data-target="val-coin" value="100,000">
-            <label>点赞 (Like)</label>
-            <input type="text" class="data-input" data-target="val-like" value="100,000">
-            <label>评论 (Comment)</label>
-            <input type="text" class="data-input" data-target="val-comment" value="100,000">
-            <label>弹幕 (Danmaku)</label>
-            <input type="text" class="data-input" data-target="val-danmaku" value="100,000">
-            <label>转发 (Share)</label>
-            <input type="text" class="data-input" data-target="val-share" value="100,000">
+        <hr>
+        <h3>数据统计 (右侧小窗)</h3>
+        <div class="row">
+            <div class="col form-group"><label>播放</label><input type="text" class="data-stat" value="100,000"></div>
+            <div class="col form-group"><label>收藏</label><input type="text" class="data-stat" value="100,000"></div>
         </div>
-
-        <div class="control-group">
-            <h3>底部统计</h3>
-            <label>上周排名</label>
-            <input type="text" id="inputLastRank" value="08">
-            <label>在榜周数</label>
-            <input type="text" id="inputWeeks" value="10">
-            <label>最高排名</label>
-            <input type="text" id="inputMaxRank" value="05">
-            <label>投稿日期</label>
-            <input type="text"
+        <div class="row">
+            <div class="col form-group"><label>投币</label><input type="text" class="data-stat" value="100,000"></div>
+            <div class="col form-group"><label>点赞</label><input type="text" class="data-stat" value="100,000"></div>
+        </div>
+        <div class="row">
+            <div class="col form-group"><label>评论</label><input type="text" class="data-stat" value="100,000"></div>
+            <div class="col form-group">
