@@ -89,6 +89,18 @@
             line-height: 18px;
         }
         .btn-success:hover { background: linear-gradient(135deg, #00d2a0, #00b894); }
+        .btn-danger {
+            background: linear-gradient(135deg, #e17055, #d63031);
+            border-color: #e17055;
+            color: white;
+            font-weight: 600;
+            margin-top: 2px;
+            padding: 4px 6px;
+            font-size: 11px;
+            height: 28px;
+            line-height: 18px;
+        }
+        .btn-danger:hover { background: linear-gradient(135deg, #ff7675, #e17055); }
 
         hr { border:0; border-top:1px solid rgba(255,255,255,0.03); margin: 3px 0; }
 
@@ -99,7 +111,6 @@
         .btn-group { display: flex; gap: 4px; }
         .btn-group .btn { flex: 1; }
 
-        /* 导出时长选项 */
         .duration-row { display: flex; gap: 4px; align-items: center; }
         .duration-row input { flex: 1; }
         .duration-row label { font-size: 8px; color: #555; white-space: nowrap; }
@@ -285,6 +296,24 @@
         .meta-item svg { width: 16px; height: 16px; fill: rgba(255,255,255,0.3); flex-shrink: 0; }
         .meta-val { color: rgba(255,255,255,0.85); font-weight: 600; margin-left: 1px; }
 
+        /* 进度提示 */
+        .progress-bar {
+            display: none;
+            height: 3px;
+            background: #1a1a2e;
+            border-radius: 2px;
+            overflow: hidden;
+            margin-top: 4px;
+        }
+        .progress-bar.active { display: block; }
+        .progress-bar .fill {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, #00b894, #007bff);
+            border-radius: 2px;
+            transition: width 0.3s;
+        }
+
         @media (max-width: 820px) {
             body { flex-direction: column; height: auto; overflow-y: auto; }
             .sidebar { 
@@ -366,7 +395,6 @@
         <div class="input-group"><label>投稿</label><input type="text" id="inDate" value="2023.10.01"></div>
     </div>
 
-    <!-- 导出时长选项 -->
     <div class="duration-row">
         <label>⏱ 导出时长</label>
         <input type="number" id="exportDuration" value="4" min="1" max="60" step="1">
@@ -376,6 +404,10 @@
     <div class="btn-group">
         <button class="btn btn-primary" onclick="downloadImage()">📸 图片</button>
         <button class="btn btn-success" onclick="exportVideo()">🎬 视频</button>
+        <button class="btn btn-danger" onclick="stopExport()" id="stopBtn" style="display:none;">⏹ 停止</button>
+    </div>
+    <div class="progress-bar" id="progressBar">
+        <div class="fill" id="progressFill"></div>
     </div>
 </div>
 
@@ -476,6 +508,7 @@
 </div>
 
 <script>
+    // ========== 视频背景 ==========
     const videoInput = document.getElementById('videoInput');
     const bgVideo = document.getElementById('bgVideo');
     let videoLoaded = false;
@@ -505,6 +538,7 @@
         reader.readAsDataURL(file);
     });
 
+    // ========== 缩放 ==========
     function fitCard() {
         const wrapper = document.getElementById('previewWrapper');
         const card = document.getElementById('capture-target');
@@ -523,6 +557,7 @@
     const ro = new ResizeObserver(fitCard);
     ro.observe(document.querySelector('.preview-area'));
 
+    // ========== 数据同步 ==========
     const mapping = {
         'inRank': 'outRank', 'inTitle': 'outTitle', 'inAuthor': 'outAuthor',
         'inTotal': 'outTotal', 'inRate': 'outRate',
@@ -562,6 +597,7 @@
         el.addEventListener('change', updateAll);
     });
 
+    // ========== 导出图片 ==========
     function downloadImage() {
         const target = document.getElementById('capture-target');
         const orig = target.style.transform;
@@ -591,33 +627,124 @@
         });
     }
 
-    async function exportVideo() {
-        const target = document.getElementById('capture-target');
-        const orig = target.style.transform;
-        target.style.transform = 'scale(1)';
-        target.style.transformOrigin = 'top left';
+    // ========== 导出视频 (使用 Canvas 逐帧渲染) ==========
+    let exportRunning = false;
+    let exportStop = false;
 
-        // 读取用户设置的时长
+    function stopExport() {
+        exportStop = true;
+    }
+
+    async function exportVideo() {
+        if (exportRunning) {
+            alert('正在导出中，请稍候...');
+            return;
+        }
+
+        const target = document.getElementById('capture-target');
         const durationInput = document.getElementById('exportDuration');
         let duration = parseInt(durationInput.value) || 4;
         if (duration < 1) duration = 1;
         if (duration > 60) duration = 60;
         durationInput.value = duration;
 
-        if (videoLoaded) {
-            bgVideo.play().catch(() => {});
-        }
+        const fps = 30;
+        const totalFrames = duration * fps;
+        const frameInterval = 1000 / fps;
+
+        // 显示进度条
+        const progressBar = document.getElementById('progressBar');
+        const progressFill = document.getElementById('progressFill');
+        progressBar.classList.add('active');
+        progressFill.style.width = '0%';
+        document.getElementById('stopBtn').style.display = 'block';
+        exportStop = false;
+        exportRunning = true;
 
         try {
-            const stream = await target.captureStream(60);
+            // 创建离屏 Canvas
+            const canvas = document.createElement('canvas');
+            canvas.width = 1280;
+            canvas.height = 720;
+            const ctx = canvas.getContext('2d');
+
+            // 准备视频流
+            const stream = canvas.captureStream(fps);
             const mediaRecorder = new MediaRecorder(stream, {
                 mimeType: 'video/webm;codecs=vp9',
                 videoBitsPerSecond: 8000000
             });
 
             const chunks = [];
-            mediaRecorder.ondataavailable = (e) => chunks.push(e.data);
-            mediaRecorder.onstop = () => {
+            mediaRecorder.ondataavailable = (e) => {
+                if (e.data.size > 0) chunks.push(e.data);
+            };
+
+            // 恢复卡片缩放用于渲染
+            const origTransform = target.style.transform;
+            const origOrigin = target.style.transformOrigin;
+            target.style.transform = 'scale(1)';
+            target.style.transformOrigin = 'top left';
+
+            // 如果视频背景存在，确保播放
+            if (videoLoaded) {
+                bgVideo.play().catch(() => {});
+            }
+
+            mediaRecorder.start();
+
+            let frameCount = 0;
+            const startTime = performance.now();
+
+            while (frameCount < totalFrames) {
+                if (exportStop) {
+                    console.log('导出已停止');
+                    break;
+                }
+
+                // 使用 html2canvas 渲染当前帧
+                await html2canvas(target, {
+                    scale: 1,
+                    useCORS: true,
+                    allowTaint: true,
+                    backgroundColor: null,
+                    width: 1280,
+                    height: 720,
+                    logging: false
+                }).then(tempCanvas => {
+                    ctx.clearRect(0, 0, 1280, 720);
+                    ctx.drawImage(tempCanvas, 0, 0, 1280, 720);
+                });
+
+                frameCount++;
+                const progress = (frameCount / totalFrames) * 100;
+                progressFill.style.width = Math.min(progress, 100) + '%';
+
+                // 等待下一帧
+                const elapsed = performance.now() - startTime;
+                const targetTime = frameCount * frameInterval;
+                const waitTime = Math.max(0, targetTime - elapsed);
+                await new Promise(resolve => setTimeout(resolve, waitTime));
+            }
+
+            // 停止录制
+            mediaRecorder.stop();
+
+            // 等待最终数据
+            await new Promise(resolve => {
+                mediaRecorder.onstop = () => {
+                    resolve();
+                };
+                // 如果已经停止但还没触发，设置超时
+                setTimeout(resolve, 1000);
+            });
+
+            // 恢复卡片样式
+            target.style.transform = origTransform;
+            target.style.transformOrigin = origOrigin;
+
+            // 下载视频
+            if (chunks.length > 0) {
                 const blob = new Blob(chunks, { type: 'video/webm' });
                 const url = URL.createObjectURL(blob);
                 const link = document.createElement('a');
@@ -625,18 +752,21 @@
                 link.href = url;
                 link.click();
                 setTimeout(() => URL.revokeObjectURL(url), 5000);
-                target.style.transform = orig;
-                target.style.transformOrigin = 'center center';
-            };
-
-            mediaRecorder.start();
-            await new Promise(resolve => setTimeout(resolve, duration * 1000));
-            mediaRecorder.stop();
+            } else {
+                alert('视频数据为空，请重试');
+            }
 
         } catch (err) {
             alert('视频导出失败: ' + err.message);
-            target.style.transform = orig;
-            target.style.transformOrigin = 'center center';
+            console.error(err);
+        } finally {
+            exportRunning = false;
+            exportStop = false;
+            progressBar.classList.remove('active');
+            document.getElementById('stopBtn').style.display = 'none';
+            if (videoLoaded) {
+                bgVideo.play().catch(() => {});
+            }
         }
     }
 
