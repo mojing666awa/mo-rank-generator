@@ -3,17 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VOCALOID Myth 液态玻璃周榜生成器</title>
-    <!-- 引入 html2canvas 用于截图 -->
+    <title>VOCALOID Myth 周榜生成器 (修复版)</title>
+    <!-- 引入 html2canvas -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <style>
         :root {
-            --glass-bg: rgba(255, 255, 255, 0.1);
-            --glass-border: rgba(255, 255, 255, 0.4);
-            --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.2);
+            --glass-bg: rgba(255, 255, 255, 0.15);
+            --glass-border: rgba(255, 255, 255, 0.3);
             --text-main: #ffffff;
-            --accent-blue: #00d2ff;
-            --accent-red: #ff4757;
+            --accent-color: #ffeb3b;
         }
 
         body {
@@ -21,338 +19,303 @@
             padding: 0;
             font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
             background-color: #f0f2f5;
-            display: flex;
-            flex-direction: column;
-            min-height: 100vh;
+            color: #333;
+            padding-bottom: 80px; /* 给底部留点空间 */
         }
 
-        /* 布局容器 */
-        .container {
-            display: flex;
-            flex-wrap: wrap;
-            width: 100%;
-            max-width: 1600px;
-            margin: 0 auto;
-            background: #fff;
-            box-shadow: 0 0 20px rgba(0,0,0,0.1);
-        }
-
-        /* 左侧控制面板 */
+        /* 控制面板样式 */
         .controls {
-            flex: 1;
-            min-width: 300px;
             padding: 20px;
-            background: #ffffff;
-            border-right: 1px solid #ddd;
-            overflow-y: auto;
-            max-height: 100vh;
+            max-width: 600px;
+            margin: 0 auto;
+            background: white;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
         }
 
-        /* 右侧预览区域 */
-        .preview-area {
-            flex: 2;
-            min-width: 350px; /* 保证手机端能放下预览图 */
-            background: #2c3e50;
-            padding: 20px;
-            display: flex;
-            justify-content: center;
-            align-items: flex-start;
-            overflow-x: auto; /* 允许横向滚动查看大图 */
+        h2 { margin-top: 0; font-size: 1.2rem; text-align: center; color: #444; }
+
+        .input-group {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 15px;
         }
 
-        h2 { margin-top: 0; color: #333; font-size: 1.2rem; border-bottom: 2px solid #eee; padding-bottom: 10px;}
-        .form-group { margin-bottom: 15px; }
-        label { display: block; margin-bottom: 5px; font-weight: bold; color: #555; font-size: 0.9rem;}
+        .full-width { grid-column: span 2; }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 0.9rem;
+            font-weight: bold;
+            color: #666;
+        }
+
         input, select {
             width: 100%;
             padding: 10px;
-            border: 1px solid #ccc;
-            border-radius: 6px;
-            box-sizing: border-box;
-            font-size: 14px;
-        }
-        
-        .row { display: flex; gap: 10px; }
-        .col { flex: 1; }
-
-        button.download-btn {
-            width: 100%;
-            padding: 15px;
-            background: linear-gradient(45deg, #2193b0, #6dd5ed);
-            color: white;
-            border: none;
+            border: 1px solid #ddd;
             border-radius: 8px;
-            font-size: 16px;
-            font-weight: bold;
-            cursor: pointer;
-            margin-top: 20px;
-            transition: transform 0.1s;
+            box-sizing: border-box;
+            font-size: 1rem;
         }
-        button.download-btn:active { transform: scale(0.98); }
 
-        /* --- 核心预览图样式 (1280x720 比例) --- */
-        #capture-target {
-            width: 1280px;
+        /* 预览区域样式 - 改为深色背景以突出白色玻璃效果 */
+        .preview-container {
+            margin-top: 20px;
+            padding: 20px;
+            background-color: #2c3e50; /* 深色背景 */
+            display: flex;
+            justify-content: center;
+            overflow-x: auto; /* 允许横向滚动 */
+        }
+
+        /* 核心卡片设计 - 16:9 比例 */
+        #capture-area {
+            width: 1280px; /* 固定宽度以保证清晰度 */
             height: 720px;
-            background-image: url('https://picsum.photos/1280/720?grayscale'); /* 默认背景，可替换 */
-            background-size: cover;
-            background-position: center;
+            background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 99%, #fecfef 100%); /* 默认粉色渐变背景 */
             position: relative;
             overflow: hidden;
+            transform-origin: top left;
+            /* 手机端缩放逻辑在JS里处理 */
+        }
+
+        /* 装饰背景圆圈 */
+        .bg-circle {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(40px);
+            opacity: 0.6;
+        }
+
+        /* 玻璃拟态通用类 */
+        .glass-panel {
+            background: var(--glass-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-border);
+            border-radius: 16px;
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
             color: white;
-            flex-shrink: 0; /* 防止被压缩 */
-            box-shadow: 0 0 50px rgba(0,0,0,0.5);
-            font-family: "Microsoft YaHei", sans-serif;
         }
 
         /* 顶部标题栏 */
-        .top-bar {
+        .header-bar {
             position: absolute;
-            top: 30px;
-            left: 40px;
-            font-size: 48px;
+            top: 20px;
+            left: 20px;
+            font-size: 40px;
             font-weight: 900;
-            text-shadow: 0 4px 10px rgba(0,0,0,0.5);
             letter-spacing: 2px;
-            z-index: 10;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            font-style: italic;
         }
 
-        /* 右上角总分面板 - 液态玻璃 */
-        .total-score-panel {
+        /* 右上角总分 */
+        .total-score-box {
             position: absolute;
-            top: 30px;
-            right: 40px;
-            width: 320px;
-            background: var(--glass-bg);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-            border: 1px solid var(--glass-border);
-            border-radius: 16px;
-            padding: 15px;
-            box-shadow: var(--glass-shadow);
+            top: 20px;
+            right: 20px;
+            padding: 15px 25px;
+            text-align: right;
+            min-width: 200px;
         }
-        .ts-header { font-size: 18px; font-weight: bold; margin-bottom: 5px; opacity: 0.9; }
-        .ts-sub { font-size: 12px; opacity: 0.7; margin-bottom: 10px; display: flex; justify-content: space-between;}
-        .ts-score { font-size: 42px; font-weight: 800; text-align: center; margin: 5px 0; text-shadow: 0 2px 5px rgba(0,0,0,0.3);}
+        .total-label { font-size: 18px; opacity: 0.9; }
+        .total-points { font-size: 48px; font-weight: bold; line-height: 1; margin: 5px 0; }
+        .total-rate { font-size: 14px; opacity: 0.8; }
 
-        .ts-grid {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
+        /* 中间详细数据列表 */
+        .stats-list {
+            position: absolute;
+            top: 130px;
+            right: 20px;
+            display: flex;
+            flex-direction: column;
             gap: 8px;
-            margin-top: 10px;
+            width: 280px;
         }
-        .ts-item {
-            background: rgba(255,255,255,0.1);
+        .stat-item {
+            display: flex;
+            align-items: center;
+            background: rgba(0,0,0,0.2);
+            padding: 8px 12px;
             border-radius: 8px;
-            padding: 6px;
-            display: flex;
-            align-items: center;
-            font-size: 12px;
-        }
-        .ts-icon { width: 20px; text-align: center; margin-right: 5px; font-size: 14px;}
-        .ts-val { flex: 1; text-align: right; font-weight: bold; }
-
-        /* 左下角排名大数字 */
-        .rank-box {
-            position: absolute;
-            bottom: 40px;
-            left: 40px;
-            display: flex;
-            align-items: center;
-        }
-        .rank-num {
-            font-size: 140px;
-            font-weight: 900;
-            line-height: 1;
-            margin-right: 20px;
-            text-shadow: 0 5px 15px rgba(0,0,0,0.4);
-        }
-        .rank-arrow {
-            font-size: 60px;
-            color: #4cd137; /* 默认绿色上升 */
+            font-size: 20px;
             font-weight: bold;
         }
+        .stat-icon { width: 30px; text-align: center; margin-right: 10px; font-size: 18px;}
+        .stat-name { flex: 1; font-size: 16px; opacity: 0.9; }
+        .stat-value { font-family: monospace; font-size: 22px; }
 
-        /* 底部信息条 - 液态玻璃 */
-        .info-bar {
+        /* 左下角主信息区 */
+        .main-info-box {
             position: absolute;
-            bottom: 40px;
-            left: 220px; /* 避开排名 */
-            right: 40px;
-            height: 100px;
-            background: var(--glass-bg);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-            border: 1px solid var(--glass-border);
-            border-radius: 16px;
+            bottom: 20px;
+            left: 20px;
+            right: 340px; /* 留出右侧空间 */
+            height: 160px;
             display: flex;
             align-items: center;
-            padding: 0 30px;
-            box-shadow: var(--glass-shadow);
+            padding: 0 20px;
         }
 
-        .song-info { flex: 2; border-right: 1px solid rgba(255,255,255,0.2); padding-right: 20px; height: 60%; display: flex; flex-direction: column; justify-content: center;}
-        .song-title { font-size: 32px; font-weight: bold; margin-bottom: 5px; text-shadow: 0 2px 4px rgba(0,0,0,0.5); }
-        .song-author { font-size: 18px; opacity: 0.9; }
+        .rank-display {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-right: 20px;
+            border-right: 2px solid rgba(255,255,255,0.3);
+            padding-right: 20px;
+        }
+        .rank-num { font-size: 80px; font-weight: bold; line-height: 1; }
+        .rank-arrow { font-size: 30px; color: var(--accent-color); margin-top: -10px;}
+        .rank-arrow.down { color: #00d2ff; transform: rotate(180deg); }
+        .rank-arrow.flat { color: #ccc; transform: rotate(90deg); font-size: 20px; margin-top: 0;}
 
-        .dates-info { flex: 1; padding-left: 30px; font-size: 14px; line-height: 1.6; opacity: 0.9;}
-        .date-row { display: flex; justify-content: space-between; }
-        .date-label { opacity: 0.7; }
+        .song-details { flex: 1; display: flex; flex-direction: column; justify-content: center; }
+        .song-title { font-size: 36px; font-weight: bold; margin-bottom: 10px; text-shadow: 0 2px 4px rgba(0,0,0,0.3); }
+        .song-author { font-size: 20px; opacity: 0.9; margin-bottom: 15px; }
+        .song-dates { font-size: 14px; opacity: 0.7; display: flex; gap: 20px; }
 
         /* 右下角统计小方块 */
-        .stats-box {
+        .history-stats {
             position: absolute;
-            bottom: 40px; /* 这里需要调整，原图是在右下角，但 info-bar 占据了位置。
-                             根据原图，stats-box 其实是在 info-bar 的右边或者重叠？
-                             看原图：Info bar 在左下，Stats 在右下。
-                             修正布局：
-                           */
-            display: none; /* 暂时隐藏，用下面的新布局 */
-        }
-
-        /* 重新规划底部布局以匹配原图 */
-        /* 原图结构：
-           左下：Rank (10) + Arrow
-           中下：Info Bar (Title, Author, Dates)
-           右下：Stats Boxes (Last Rank, Weeks, Peak)
-        */
-        
-        .bottom-layout {
-            position: absolute;
-            bottom: 30px;
-            left: 30px;
-            right: 30px;
-            display: flex;
-            align-items: stretch;
-            height: 110px;
-        }
-
-        .bl-rank {
-            width: 150px;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            margin-right: 15px;
-        }
-        .bl-rank-num { font-size: 100px; font-weight: 900; line-height: 0.9; text-shadow: 0 4px 10px rgba(0,0,0,0.5); }
-        .bl-rank-arrow { font-size: 40px; margin-top: 5px; }
-
-        .bl-info {
-            flex: 1;
-            background: var(--glass-bg);
-            backdrop-filter: blur(15px);
-            -webkit-backdrop-filter: blur(15px);
-            border: 1px solid var(--glass-border);
-            border-radius: 12px;
-            padding: 15px 25px;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            margin-right: 15px;
-            box-shadow: var(--glass-shadow);
-        }
-        .bi-title { font-size: 28px; font-weight: bold; margin-bottom: 4px; text-shadow: 0 2px 4px rgba(0,0,0,0.5); }
-        .bi-author { font-size: 16px; opacity: 0.9; margin-bottom: 8px; }
-        .bi-dates { font-size: 12px; opacity: 0.8; display: flex; gap: 20px; }
-
-        .bl-stats {
+            bottom: 20px;
+            right: 20px;
             display: flex;
             gap: 10px;
         }
-        .stat-card {
-            width: 80px;
-            background: var(--glass-bg);
-            backdrop-filter: blur(15px);
-            -webkit-backdrop-filter: blur(15px);
-            border: 1px solid var(--glass-border);
-            border-radius: 12px;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            box-shadow: var(--glass-shadow);
+        .mini-stat {
+            background: rgba(255,255,255,0.9);
+            color: #333;
+            padding: 10px 15px;
+            border-radius: 10px;
+            text-align: center;
+            min-width: 60px;
         }
-        .sc-num { font-size: 32px; font-weight: bold; line-height: 1; }
-        .sc-label { font-size: 10px; margin-top: 5px; opacity: 0.8; text-align: center; line-height: 1.1;}
+        .mini-val { font-size: 28px; font-weight: bold; display: block; line-height: 1.2; }
+        .mini-label { font-size: 12px; color: #666; }
 
+        /* 悬浮下载按钮 - 解决找不到按钮的问题 */
+        .fab-download {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 50px;
+            padding: 15px 30px;
+            font-size: 18px;
+            font-weight: bold;
+            box-shadow: 0 4px 15px rgba(0,123,255,0.4);
+            cursor: pointer;
+            z-index: 9999;
+            transition: transform 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .fab-download:active { transform: scale(0.95); }
 
-        /* 移动端适配 */
+        /* 移动端适配调整 */
         @media (max-width: 768px) {
-            .container { flex-direction: column; }
-            .controls { max-height: 40vh; border-right: none; border-bottom: 1px solid #ddd; }
-            .preview-area { 
-                padding: 10px; 
-                justify-content: flex-start; /* 靠左对齐以便滚动 */
-                align-items: center;
-            }
-            /* 强制预览图缩小以适应屏幕宽度，但保持比例 */
-            #capture-target {
-                transform-origin: top left;
-                transform: scale(0.5); /* 初始缩放，JS会动态计算 */
-                margin-bottom: -300px; /* 补偿缩放后的空白 */
+            .input-group { grid-template-columns: 1fr; }
+            .full-width { grid-column: span 1; }
+            
+            /* 强制缩放预览图以适应手机屏幕宽度 */
+            .preview-container {
+                padding: 10px;
+                justify-content: flex-start; /* 左对齐以便滚动 */
             }
         }
     </style>
 </head>
 <body>
 
-<div class="container">
-    <!-- 左侧：控制面板 -->
-    <div class="controls">
-        <h2>榜单数据设置</h2>
-        
-        <div class="form-group">
-            <label>背景图片 URL (可选)</label>
-            <input type="text" id="bgInput" placeholder="输入图片链接..." oninput="updatePreview()">
-        </div>
+    <!-- 悬浮下载按钮 -->
+    <button class="fab-download" onclick="downloadImage()">
+        <span>📷</span> 生成并保存图片
+    </button>
 
-        <div class="row">
-            <div class="col form-group">
-                <label>当前排名</label>
-                <input type="number" id="rankInput" value="10" oninput="updatePreview()">
+    <div class="controls">
+        <h2>VOCALOID Myth 榜单编辑器</h2>
+        
+        <div class="input-group">
+            <div class="full-width">
+                <label>歌曲标题</label>
+                <input type="text" id="in_title" value="愛属性" oninput="updatePreview()">
             </div>
-            <div class="col form-group">
+            <div class="full-width">
+                <label>P主/作者</label>
+                <input type="text" id="in_author" value="ピノキオピー" oninput="updatePreview()">
+            </div>
+            
+            <div>
+                <label>当前排名</label>
+                <input type="number" id="in_rank" value="10" oninput="updatePreview()">
+            </div>
+            <div>
                 <label>排名变化</label>
-                <select id="arrowInput" onchange="updatePreview()">
-                    <option value="up" style="color:green">▲ 上升</option>
-                    <option value="same" style="color:gray">- 持平</option>
-                    <option value="down" style="color:red">▼ 下降</option>
-                    <option value="new" style="color:#00d2ff">NEW</option>
+                <select id="in_arrow" onchange="updatePreview()">
+                    <option value="up">上升 (↑)</option>
+                    <option value="down">下降 (↓)</option>
+                    <option value="flat">持平 (-)</option>
+                    <option value="new">NEW</option>
                 </select>
             </div>
-        </div>
 
-        <div class="form-group">
-            <label>歌曲名称</label>
-            <input type="text" id="titleInput" value="愛属性" oninput="updatePreview()">
-        </div>
-        <div class="form-group">
-            <label>P主/作者</label>
-            <input type="text" id="authorInput" value="ピノキオピー" oninput="updatePreview()">
-        </div>
-
-        <div class="row">
-            <div class="col form-group">
-                <label>投稿日期</label>
-                <input type="text" id="datePostInput" value="2025/10/03" oninput="updatePreview()">
+            <div class="full-width">
+                <label>总得分 (Total Point)</label>
+                <input type="text" id="in_total" value="1,000,000" oninput="updatePreview()">
             </div>
-            <div class="col form-group">
-                <label>神话达成日</label>
-                <input type="text" id="dateMythInput" value="2025/02/17" oninput="updatePreview()">
+
+            <div><label>播放</label><input type="text" class="data-input" data-target="out_play" value="100,000" oninput="updatePreview()"></div>
+            <div><label>收藏</label><input type="text" class="data-input" data-target="out_collect" value="100,000" oninput="updatePreview()"></div>
+            <div><label>投币</label><input type="text" class="data-input" data-target="out_coin" value="100,000" oninput="updatePreview()"></div>
+            <div><label>点赞</label><input type="text" class="data-input" data-target="out_like" value="100,000" oninput="updatePreview()"></div>
+            <div><label>评论</label><input type="text" class="data-input" data-target="out_comment" value="100,000" oninput="updatePreview()"></div>
+            <div><label>弹幕</label><input type="text" class="data-input" data-target="out_danmaku" value="100,000" oninput="updatePreview()"></div>
+            <div><label>转发</label><input type="text" class="data-input" data-target="out_share" value="100,000" oninput="updatePreview()"></div>
+
+            <div><label>上周排名</label><input type="text" id="in_last_rank" value="08" oninput="updatePreview()"></div>
+            <div><label>在榜周数</label><input type="text" id="in_weeks" value="10" oninput="updatePreview()"></div>
+            <div><label>最高排名</label><input type="text" id="in_max_rank" value="05" oninput="updatePreview()"></div>
+            
+            <div class="full-width">
+                <label>投稿日期 (YYYY/MM/DD)</label>
+                <input type="text" id="in_date" value="2025/10/03" oninput="updatePreview()">
+            </div>
+             <div class="full-width">
+                <label>达成日期 (YYYY/MM/DD)</label>
+                <input type="text" id="in_achieve_date" value="2025/02/17" oninput="updatePreview()">
             </div>
         </div>
+    </div>
 
-        <hr>
-        <h3>数据统计 (右侧小窗)</h3>
-        <div class="row">
-            <div class="col form-group"><label>播放</label><input type="text" class="data-stat" value="100,000"></div>
-            <div class="col form-group"><label>收藏</label><input type="text" class="data-stat" value="100,000"></div>
-        </div>
-        <div class="row">
-            <div class="col form-group"><label>投币</label><input type="text" class="data-stat" value="100,000"></div>
-            <div class="col form-group"><label>点赞</label><input type="text" class="data-stat" value="100,000"></div>
-        </div>
-        <div class="row">
-            <div class="col form-group"><label>评论</label><input type="text" class="data-stat" value="100,000"></div>
-            <div class="col form-group">
+    <div class="preview-container">
+        <div id="capture-area">
+            <!-- 背景装饰 -->
+            <div class="bg-circle" style="top: -100px; left: -100px; width: 500px; height: 500px; background: #ff9a9e;"></div>
+            <div class="bg-circle" style="bottom: -50px; right: -50px; width: 400px; height: 400px; background: #a18cd1;"></div>
+
+            <!-- 顶部 LOGO -->
+            <div class="header-bar">VOCALOID Myth</div>
+
+            <!-- 右上角总分 -->
+            <div class="glass-panel total-score-box">
+                <div class="total-label">Total Point</div>
+                <div class="total-points" id="out_total">1,000,000</div>
+                <div class="total-rate">Rate=100%</div>
+            </div>
+
+            <!-- 右侧数据列表 -->
+            <div class="stats-list">
+                <div class="stat-item"><span class="stat-icon">▶</span><span class="stat-name">播放</span><span class="stat-value" id="out_play">100,000</span></div>
+                <div class="stat-item"><span class="stat-icon">★</span><span class="stat-name">收藏</span><span class="stat-value" id="out_collect">100,000</span></div>
+                <div class="stat-item"><span class="stat-icon">◎</span><span class="stat-name">投币</span><span class="stat-value" id="out_coin">100,000</span></div>
+                <div class="stat-item"><span class="stat-icon">👍</span><span class="stat-name">点赞</span><span class="stat-value" id="out_like">100,000</span></div>
+                <div class="stat-item"><span class="stat-icon">💬</span><span class="stat-name">评论</span><span class="stat-value" id="out_comment">100,000</span></div>
+                <div class="stat-item"><span class="stat-icon">▤</span><span class="stat-name">弹幕</span><span class="stat-value" id="out_danmaku">100,000</span></div>
+                <div class="stat-item"><span class="stat-icon">↪</span><span class="stat-name">转发</span><span
