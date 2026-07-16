@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VOCALOID Myth 液态玻璃周榜生成器</title>
+    <!-- 引入 html2canvas 用于截图 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        :root {
+            --glass-bg: rgba(255, 255, 255, 0.1);
+            --glass-border: rgba(255, 255, 255, 0.4);
+            --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.2);
+            --text-main: #ffffff;
+            --text-dark: #333;
+            --accent-blue: #00d2ff;
+            --accent-red: #ff4757;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #2c3e50;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* 布局容器 */
+        .container {
+            display: flex;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* 左侧控制面板 */
+        .controls {
+            width: 350px;
+            background: #fff;
+            padding: 20px;
+            overflow-y: auto;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .control-group {
+            border-bottom: 1px solid #eee;
+            padding-bottom: 15px;
+        }
+
+        .control-group h3 {
+            margin-top: 0;
+            color: #333;
+            font-size: 16px;
+            margin-bottom: 10px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 12px;
+            color: #666;
+        }
+
+        input, select {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+
+        button.download-btn {
+            background: linear-gradient(45deg, #ff9a9e 0%, #fad0c4 99%, #fad0c4 100%);
+            border: none;
+            padding: 15px;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            border-radius: 8px;
+            margin-top: auto;
+            font-size: 16px;
+            transition: transform 0.2s;
+        }
+
+        button.download-btn:hover {
+            transform: scale(1.02);
+        }
+
+        /* 右侧预览区域 */
+        .preview-area {
+            flex: 1;
+            background: url('https://images.unsplash.com/photo-1550684848-fac1c5b4e853?q=80&w=2070&auto=format&fit=crop') no-repeat center center;
+            background-size: cover;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+        }
+
+        /* 核心画布 (16:9 比例) */
+        #capture-target {
+            width: 1280px;
+            height: 720px;
+            background: radial-gradient(circle at center, #ffecd2 0%, #fcb69f 100%); /* 默认背景，会被图片覆盖 */
+            position: relative;
+            overflow: hidden;
+            transform-origin: center center;
+            /* 自动缩放以适应屏幕 */
+            transform: scale(0.6); 
+            box-shadow: 0 0 50px rgba(0,0,0,0.5);
+        }
+
+        /* 背景图片层 */
+        .bg-image-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            z-index: 0;
+        }
+
+        /* 顶部标题 */
+        .top-title {
+            position: absolute;
+            top: 30px;
+            left: 40px;
+            font-size: 48px;
+            font-weight: 900;
+            color: rgba(255, 255, 255, 0.8);
+            text-shadow: 2px 2px 0px rgba(0,0,0,0.2);
+            font-style: italic;
+            z-index: 2;
+            letter-spacing: 2px;
+        }
+
+        /* 通用液态玻璃样式 */
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.25);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            border-radius: 16px;
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+            padding: 15px;
+            color: #fff;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+        }
+
+        /* 右上角总分面板 */
+        .total-score-panel {
+            position: absolute;
+            top: 30px;
+            right: 30px;
+            width: 280px;
+            z-index: 2;
+            text-align: right;
+        }
+
+        .total-label {
+            font-size: 14px;
+            opacity: 0.9;
+            margin-bottom: 5px;
+        }
+
+        .total-points {
+            font-size: 42px;
+            font-weight: 800;
+            line-height: 1;
+            margin-bottom: 10px;
+            color: #fff;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .sub-stats {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            opacity: 0.8;
+            border-top: 1px solid rgba(255,255,255,0.3);
+            padding-top: 5px;
+        }
+
+        /* 右侧详细数据列表 */
+        .detail-list {
+            position: absolute;
+            top: 200px;
+            right: 30px;
+            width: 220px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            z-index: 2;
+        }
+
+        .list-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(8px);
+            padding: 8px 12px;
+            border-radius: 8px;
+            border-left: 4px solid rgba(255,255,255,0.5);
+        }
+
+        .list-item span:first-child {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+        }
+
+        .list-item span:last-child {
+            font-weight: bold;
+            font-size: 16px;
+        }
+
+        /* 图标占位符 */
+        .icon {
+            width: 16px;
+            height: 16px;
+            display: inline-block;
+            background: #fff;
+            border-radius: 50%;
+        }
+
+        /* 左下角信息栏 */
+        .bottom-info {
+            position: absolute;
+            bottom: 30px;
+            left: 30px;
+            right: 30px;
+            display: flex;
+            align-items: stretch;
+            height: 100px;
+            z-index: 2;
+            gap: 15px;
+        }
+
+        /* 排名大数字 */
+        .rank-box {
+            width: 120px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+        }
+
+        .rank-number {
+            font-size: 72px;
+            font-weight: 900;
+            line-height: 1;
+            color: #fff;
+            text-shadow: 0 4px 8px rgba(0,0,0,0.3);
+        }
+
+        .rank-arrow {
+            font-size: 24px;
+            margin-top: 5px;
+            font-weight: bold;
+        }
+        
+        .arrow-up { color: #00ff00; text-shadow: 0 0 5px #00ff00; }
+        .arrow-down { color: #ff0000; text-shadow: 0 0 5px #ff0000; }
+        .arrow-same { color: #aaa; }
+
+        /* 歌曲信息 */
+        .song-info-box {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            padding-left: 20px;
+            border-left: 2px solid rgba(255,255,255,0.3);
+        }
+
+        .song-title {
+            font-size: 32px;
+            font-weight: 800;
+            margin-bottom: 8px;
+            color: #fff;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+        }
+
+        .song-author {
+            font-size: 18px;
+            opacity: 0.9;
+        }
+
+        /* 右下角统计数据 */
+        .stats-box {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .stat-item {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 10px 15px;
+            border-radius: 10px;
+            text-align: center;
+            min-width: 60px;
+        }
+
+        .stat-num {
+            font-size: 28px;
+            font-weight: bold;
+            display: block;
+        }
+
+        .stat-label {
+            font-size: 10px;
+            opacity: 0.7;
+            text-transform: uppercase;
+        }
+
+        /* 装饰性文字 */
+        .deco-text {
+            position: absolute;
+            font-size: 60px;
+            font-weight: 900;
+            color: rgba(255, 255, 255, 0.1);
+            transform: rotate(-10deg);
+            z-index: 1;
+            pointer-events: none;
+        }
+        .deco-left { left: 100px; top: 200px; }
+        .deco-right { right: 300px; bottom: 200px; }
+
+        /* 上传按钮样式 */
+        .file-upload {
+            position: relative;
+            overflow: hidden;
+            display: inline-block;
+            width: 100%;
+        }
+        .file-upload input[type=file] {
+            font-size: 100px;
+            position: absolute;
+            left: 0;
+            top: 0;
+            opacity: 0;
+            cursor: pointer;
+        }
+        .btn-style {
+            background: #eee; border: 1px solid #ccc; padding: 8px; border-radius: 4px; text-align: center; display: block; cursor: pointer;
+        }
+
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <!-- 左侧控制面板 -->
+    <div class="controls">
+        <h2>⚙️ 榜单设置</h2>
+        
+        <div class="control-group">
+            <h3>背景设置</h3>
+            <div class="file-upload">
+                <span class="btn-style">📷 上传背景图 (推荐 16:9)</span>
+                <input type="file" id="bgInput" accept="image/*">
+            </div>
+        </div>
+
+        <div class="control-group">
+            <h3>基本信息</h3>
+            <label>左上角标题</label>
+            <input type="text" id="inputTitle" value="VOCALOID Myth">
+            
+            <label>排名 (Rank)</label>
+            <input type="number" id="inputRank" value="10">
+            
+            <label>排名趋势 (Arrow)</label>
+            <select id="inputArrow">
+                <option value="up">上升 (▲)</option>
+                <option value="down">下降 (▼)</option>
+                <option value="same" selected>持平 (-)</option>
+                <option value="new">NEW</option>
+            </select>
+
+            <label>歌曲名</label>
+            <input type="text" id="inputSongName" value="愛属性">
+            
+            <label>P主/作者</label>
+            <input type="text" id="inputAuthor" value="ピノキオピー - 初音ミク">
+        </div>
+
+        <div class="control-group">
+            <h3>分数数据</h3>
+            <label>总得分 (Total Point)</label>
+            <input type="text" id="inputTotalScore" value="1,000,000">
+            <label>上周得分</label>
+            <input type="text" id="inputLastScore" value="676,767">
+            <label>Rate 变化</label>
+            <input type="text" id="inputRate" value="+100%">
+        </div>
+
+        <div class="control-group">
+            <h3>六维数据 (播放/收藏/投币...)</h3>
+            <label>播放 (Play)</label>
+            <input type="text" class="data-input" data-target="val-play" value="100,000">
+            <label>收藏 (Fav)</label>
+            <input type="text" class="data-input" data-target="val-collect" value="100,000">
+            <label>投币 (Coin)</label>
+            <input type="text" class="data-input" data-target="val-coin" value="100,000">
+            <label>点赞 (Like)</label>
+            <input type="text" class="data-input" data-target="val-like" value="100,000">
+            <label>评论 (Comment)</label>
+            <input type="text" class="data-input" data-target="val-comment" value="100,000">
+            <label>弹幕 (Danmaku)</label>
+            <input type="text" class="data-input" data-target="val-danmaku" value="100,000">
+            <label>转发 (Share)</label>
+            <input type="text" class="data-input" data-target="val-share" value="100,000">
+        </div>
+
+        <div class="control-group">
+            <h3>底部统计</h3>
+            <label>上周排名</label>
+            <input type="text" id="inputLastRank" value="08">
+            <label>在榜周数</label>
+            <input type="text" id="inputWeeks" value="10">
+            <label>最高排名</label>
+            <input type="text" id="inputMaxRank" value="05">
+            <label>投稿日期</label>
+            <input type="text"
